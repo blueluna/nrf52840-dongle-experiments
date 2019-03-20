@@ -18,6 +18,7 @@ const APP: () = {
     static mut LED_GREEN: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
     static mut LED_BLUE: gpio::Pin<gpio::Output<gpio::PushPull>> = ();
     static mut STATE: u8 = 0u8;
+    static mut RTC: pac::RTC0 = ();
 
     #[init]
     fn init() {
@@ -65,12 +66,18 @@ const APP: () = {
         timer1.intenset.write(|w| w.compare0().set_bit());
         timer1.tasks_start.write(|w| w.tasks_start().set_bit());
 
+        let rtc = device.RTC0;
+        rtc.intenset.write(|w| w.tick().set_bit() );
+        rtc.prescaler.write(|w| unsafe { w.prescaler().bits(4095) });
+        rtc.tasks_start.write(|w| w.tasks_start().set_bit() );
+
         hprintln!("Initialise").unwrap();
 
         TIMER = timer1;
         LED_RED = p0.p0_08.degrade().into_push_pull_output(gpio::Level::High);
         LED_GREEN = p1.p1_09.degrade().into_push_pull_output(gpio::Level::High);
         LED_BLUE = p0.p0_12.degrade().into_push_pull_output(gpio::Level::Low);
+        RTC = rtc;
     }
 
     #[interrupt(resources = [TIMER, LED_RED, LED_GREEN, LED_BLUE, STATE],)]
@@ -80,6 +87,38 @@ const APP: () = {
         timer.events_compare[0].write(|w| w.events_compare().clear_bit());
         timer.tasks_clear.write(|w| w.tasks_clear().set_bit());
         timer.tasks_start.write(|w| w.tasks_start().set_bit());
+        /*
+        *resources.STATE = match *resources.STATE {
+            0 => {
+                (*resources.LED_RED).set_high();
+                (*resources.LED_GREEN).set_high();
+                (*resources.LED_BLUE).set_low();
+                1
+            },
+            1 => {
+                (*resources.LED_RED).set_high();
+                (*resources.LED_GREEN).set_low();
+                (*resources.LED_BLUE).set_high();
+                2
+            },
+            2 => {
+                (*resources.LED_RED).set_low();
+                (*resources.LED_GREEN).set_high();
+                (*resources.LED_BLUE).set_high();
+                0
+            },
+            _ => {
+                0
+            }
+        }
+        */
+    }
+
+    #[interrupt(resources = [RTC, LED_RED, LED_GREEN, LED_BLUE, STATE],)]
+    fn RTC0() {
+        let rtc = resources.RTC;
+        // Clear event and restart
+        rtc.events_tick.write(|w| w.events_tick().clear_bit());
 
         *resources.STATE = match *resources.STATE {
             0 => {
