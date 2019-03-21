@@ -4,7 +4,6 @@
 #[allow(unused_imports)]
 use panic_semihosting;
 
-use cortex_m_semihosting::hprintln;
 use rtfm::app;
 
 use nrf52840_hal::{gpio, prelude::*};
@@ -35,26 +34,12 @@ const APP: () = {
             .CLOCK
             .tasks_hfclkstart
             .write(|w| w.tasks_hfclkstart().set_bit());
-        while device
-            .CLOCK
-            .events_hfclkstarted
-            .read()
-            .events_hfclkstarted()
-            .bit_is_clear()
-        {}
         // Start low frequency clock
         device.CLOCK.events_lfclkstarted.reset();
         device
             .CLOCK
             .tasks_lfclkstart
             .write(|w| w.tasks_lfclkstart().set_bit());
-        while device
-            .CLOCK
-            .events_lfclkstarted
-            .read()
-            .events_lfclkstarted()
-            .bit_is_clear()
-        {}
 
         // Configure timer1 to generate a interrupt every second
         let timer1 = device.TIMER1;
@@ -70,8 +55,6 @@ const APP: () = {
         rtc.intenset.write(|w| w.tick().set_bit() );
         rtc.prescaler.write(|w| unsafe { w.prescaler().bits(4095) });
         rtc.tasks_start.write(|w| w.tasks_start().set_bit() );
-
-        hprintln!("Initialise").unwrap();
 
         TIMER = timer1;
         LED_RED = p0.p0_08.degrade().into_push_pull_output(gpio::Level::High);
